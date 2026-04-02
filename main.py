@@ -1738,11 +1738,12 @@ def idle_init():
     idle_mail_check()
     set_top_text("")
     set_bottom_text("    willasaywhat")
-    bottom_blit(22, 0)
-    bottom_blit(23, 1)
-    bottom_blit(24, 2)
-    bottom_blit(25, 3)
-    bottom_blit(26, 4)
+    # willa edit
+    # bottom_blit(22, 0)
+    # bottom_blit(23, 1)
+    # bottom_blit(24, 2)
+    # bottom_blit(25, 3)
+    # bottom_blit(26, 4)
     
 def idle_animate():
     global idle_scroll, you_have_got_mail
