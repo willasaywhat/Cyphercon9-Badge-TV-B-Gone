@@ -503,14 +503,14 @@ def send_all_codes():
         if cancel.value() == 0:  # active LOW
             show_status(
                 "CANCELLED!      ",
-                "AT " + str(i).zfill(3) + "/" + str(total).zfill(3) + "       ",
+                "AT " + ("000" + str(i))[-3:] + "/" + ("000" + str(total))[-3:] + "       ",
                 i, total
             )
             print("Cancelled at", code[0], str(i) + "/" + str(total))
             return False
 
         if i == 0 or i % _DISPLAY_EVERY == 0:
-            num_str = str(i + 1).zfill(3) + "/" + str(total).zfill(3)
+            num_str = ("000" + str(i + 1))[-3:] + "/" + ("000" + str(total))[-3:]
             show_status(
                 "SENDING " + num_str + "   ",
                 "CODE: " + code[0] + "         ",
@@ -556,7 +556,7 @@ while True:
                 total = len(CODES)
                 show_status(
                     "DONE!           ",
-                    "ALL " + str(total).zfill(3) + " SENT      ",
+                    "ALL " + ("000" + str(total))[-3:] + " SENT      ",
                     total, total
                 )
                 blink(5, on_ms=50, off_ms=50)
