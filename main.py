@@ -299,6 +299,7 @@ SPI1 = machine.SPI(
     miso=LCDmiso)
 
 screen_buffer = bytearray(528)  # 4 pages * 132 columns
+_sbuf = memoryview(screen_buffer)  # zero-copy view for bulk SPI writes
 
 def spiByte(data, DC):
     xfer = bytearray(1)
@@ -368,10 +369,13 @@ def pset(x, y, value):
         screen_buffer[idx] = temp
 
 def flip():
-    for y in range(4):
-        setRowColLCD(y, 0)
-        for x in range(132):
-            spiByte(screen_buffer[(y * 132) + x], 1)
+    # Write each page as one bulk SPI transfer instead of 132 individual bytes.
+    for page in range(4):
+        setRowColLCD(page, 0)
+        LCDdataCMD.value(1)
+        LCDcs.off()
+        SPI1.write(_sbuf[page * 132:(page + 1) * 132])
+        LCDcs.on()
 
 def top_blit(character_index, tile_index):
     if not (0 <= character_index <= 255 and 0 <= tile_index <= 15):
@@ -424,24 +428,25 @@ def set_bottom_text(text):
 #   y 20-31: bottom text (16 chars)
 
 def draw_progress_bar(current, total):
-    """Draw a bordered progress bar in rows y=0..5."""
-    # Clear bar area
-    for y in range(6):
-        for x in range(132):
-            pset(x, y, 0)
-    # Outer border
+    """Draw a bordered progress bar in rows y=0..5.
+
+    Writes directly to screen_buffer page-0 bytes (bits 0-5 = y=0..5),
+    preserving bits 6-7 (y=6,7) which belong to the top text area.
+    This replaces ~1000 individual pset() calls with 132 byte writes.
+      bit 0 = y=0 top border
+      bits 1-4 = y=1..4 fill area
+      bit 5 = y=5 bottom border
+    """
+    fill = int((current / total) * 130) if total > 0 else 0
     for x in range(132):
-        pset(x, 0, 1)
-        pset(x, 5, 1)
-    for y in range(1, 5):
-        pset(0,   y, 1)
-        pset(131, y, 1)
-    # Fill interior proportionally
-    if total > 0:
-        fill = int((current / total) * 130)
-        for x in range(1, 1 + fill):
-            for y in range(1, 5):
-                pset(x, y, 1)
+        preserved = screen_buffer[x] & 0xC0  # keep bits 6-7 (y=6, y=7)
+        if x == 0 or x == 131:
+            bar = 0x3F              # side borders: all 6 bits set
+        elif x <= fill:
+            bar = 0x3F              # filled column: top+fill+bottom
+        else:
+            bar = 0x21              # empty column: top border (bit 0) + bottom border (bit 5)
+        screen_buffer[x] = preserved | bar
 
 def show_status(top, bottom, current=0, total=0):
     """Update the full screen: progress bar + two text rows, then flip."""
@@ -489,6 +494,8 @@ def send_code(code):
             ir_space(duration)
     ir_pwm.duty_u16(0)
 
+_DISPLAY_EVERY = 5  # refresh LCD every N codes to keep IR timing responsive
+
 def send_all_codes():
     """Send all CODES in sequence. Returns True=done, False=cancelled."""
     total = len(CODES)
@@ -502,12 +509,13 @@ def send_all_codes():
             print("Cancelled at", code[0], str(i) + "/" + str(total))
             return False
 
-        num_str = str(i + 1).zfill(3) + "/" + str(total).zfill(3)
-        show_status(
-            "SENDING " + num_str + "   ",
-            "CODE: " + str(code[0]) + "          ",
-            i + 1, total
-        )
+        if i == 0 or i % _DISPLAY_EVERY == 0:
+            num_str = str(i + 1).zfill(3) + "/" + str(total).zfill(3)
+            show_status(
+                "SENDING " + num_str + "   ",
+                "CODE: " + code[0] + "         ",
+                i + 1, total
+            )
         print("Sending", code[0], str(i + 1) + "/" + str(total))
         led.toggle()
         send_code(code)
