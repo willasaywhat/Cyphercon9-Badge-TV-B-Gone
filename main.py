@@ -494,7 +494,7 @@ def send_code(code):
             ir_space(duration)
     ir_pwm.duty_u16(0)
 
-_DISPLAY_EVERY = 5  # refresh LCD every N codes to keep IR timing responsive
+_DISPLAY_EVERY = 1  # refresh LCD on every code
 
 def send_all_codes():
     """Send all CODES in sequence. Returns True=done, False=cancelled."""
