@@ -553,22 +553,30 @@ def blink(n, on_ms=100, off_ms=100):
 #   SLEEP / WAKE
 ##
 
+def _resync_spi():
+    """Re-init SPI after machine.freq() changes so the baud divider is correct."""
+    SPI1.init(baudrate=5000000, polarity=1, phase=1, bits=8,
+              firstbit=machine.SPI.MSB)
+
 def enter_light_sleep_mode():
     """Show sleep message, blank the LCD, and drop CPU to 48 MHz."""
     show_status("  ZZZ SLEEPING  ", " SW1 TO WAKE UP ")
     utime.sleep_ms(500)
     lcd_display_off()
     machine.freq(48_000_000)
+    _resync_spi()
 
 def wake_from_light_sleep_mode():
     """Restore CPU speed, turn LCD back on, show ready screen."""
     machine.freq(125_000_000)
+    _resync_spi()
     lcd_display_on()
     show_status("TV-B-GONE READY ", "PRESS SW1 START ")
 
 def enter_deep_sleep():
     """Enter RP2040 deep sleep; GPIO14 (trigger) wakes the system via reset."""
     machine.freq(125_000_000)
+    _resync_spi()
     lcd_display_on()
     show_status("  DEEP SLEEP    ", " SW1 TO WAKE UP ")
     blink(2, on_ms=200, off_ms=200)
