@@ -19,13 +19,11 @@ The badge has a three-tier sleep system to extend battery life:
 |------|---------|-----------|------|
 | **Light poll** | Always | CPU halts between button checks (`machine.lightsleep`) instead of busy-waiting | Automatic |
 | **Display sleep** | 30 s idle | LCD turns off, CPU drops to 48 MHz | Press SW1 |
-| **Deep sleep** | 5 min idle | LCD off, CPU at 48 MHz, polls SW1 every 500 ms | Press SW1 — badge reboots |
 
-Timeouts are configurable constants near the top of `main.py`:
+The timeout is a configurable constant near the top of `main.py`:
 
 ```python
-_IDLE_TIMEOUT_MS       = 30_000   # 30 s → display-off light sleep
-_DEEP_SLEEP_TIMEOUT_MS = 300_000  # 5 min → deep sleep (resets on wake)
+_IDLE_TIMEOUT_MS = 30_000   # 30 s → display-off light sleep
 ```
 
 ## Installation

@@ -16,7 +16,6 @@ from codes import CODES
 # Power management timeouts (milliseconds)
 _LIGHT_SLEEP_POLL_MS   = 20       # lightsleep interval while actively polling
 _IDLE_TIMEOUT_MS       = 30_000   # 30 s idle → display-off light sleep
-_DEEP_SLEEP_TIMEOUT_MS = 300_000  # 5 min idle → deep sleep (resets on wake)
 
 ##
 #   CHARACTER MAP (from original tymkrs badge firmware)
@@ -573,23 +572,6 @@ def wake_from_light_sleep_mode():
     lcd_display_on()
     show_status("TV-B-GONE READY ", "PRESS SW1 START ")
 
-def enter_deep_sleep():
-    """Deepest power tier: LCD off, CPU at 48 MHz, poll SW1 every 500 ms then reset."""
-    machine.freq(125_000_000)
-    _resync_spi()
-    lcd_display_on()
-    show_status("  DEEP SLEEP    ", " SW1 TO WAKE UP ")
-    blink(2, on_ms=200, off_ms=200)
-    lcd_display_off()
-    machine.freq(48_000_000)
-    # No-arg lightsleep() needs a properly registered GPIO IRQ wake source,
-    # which is unreliable on RP2040 MicroPython. Timed lightsleep(500) is
-    # guaranteed to work (same mechanism as Tier 2). Poll SW1 and reset on
-    # press to give the intended "clean reboot on wake" behaviour.
-    while trigger.value() == 1:  # active LOW: 1 = not pressed
-        machine.lightsleep(500)
-    machine.reset()
-
 ##
 #   STARTUP
 ##
@@ -634,9 +616,7 @@ while True:
 
     idle_ms = utime.ticks_diff(utime.ticks_ms(), _last_activity)
 
-    if idle_ms >= _DEEP_SLEEP_TIMEOUT_MS:
-        enter_deep_sleep()            # does not return; chip resets on wake
-    elif idle_ms >= _IDLE_TIMEOUT_MS and not _display_sleeping:
+    if idle_ms >= _IDLE_TIMEOUT_MS and not _display_sleeping:
         _display_sleeping = True
         enter_light_sleep_mode()
 
