@@ -13,6 +13,11 @@ import utime
 import gc
 from codes import CODES
 
+# Power management timeouts (milliseconds)
+_LIGHT_SLEEP_POLL_MS   = 20       # lightsleep interval while actively polling
+_IDLE_TIMEOUT_MS       = 30_000   # 30 s idle → display-off light sleep
+_DEEP_SLEEP_TIMEOUT_MS = 300_000  # 5 min idle → deep sleep (resets on wake)
+
 ##
 #   CHARACTER MAP (from original tymkrs badge firmware)
 ##
@@ -377,6 +382,14 @@ def flip():
         SPI1.write(_sbuf[page * 132:(page + 1) * 132])
         LCDcs.on()
 
+def lcd_display_off():
+    """Turn off the LCD panel to save power (ST7565 display-off command)."""
+    spiByte(0xAE, 0)
+
+def lcd_display_on():
+    """Turn the LCD panel back on (ST7565 display-on command)."""
+    spiByte(0xAF, 0)
+
 def top_blit(character_index, tile_index):
     if not (0 <= character_index <= 255 and 0 <= tile_index <= 15):
         return
@@ -536,6 +549,37 @@ def blink(n, on_ms=100, off_ms=100):
         led.value(0)
         utime.sleep_ms(off_ms)
 
+##
+#   SLEEP / WAKE
+##
+
+def enter_light_sleep_mode():
+    """Show sleep message, blank the LCD, and drop CPU to 48 MHz."""
+    show_status("  ZZZ SLEEPING  ", " SW1 TO WAKE UP ")
+    utime.sleep_ms(500)
+    lcd_display_off()
+    machine.freq(48_000_000)
+
+def wake_from_light_sleep_mode():
+    """Restore CPU speed, turn LCD back on, show ready screen."""
+    machine.freq(125_000_000)
+    lcd_display_on()
+    show_status("TV-B-GONE READY ", "PRESS SW1 START ")
+
+def enter_deep_sleep():
+    """Enter RP2040 deep sleep; GPIO14 (trigger) wakes the system via reset."""
+    machine.freq(125_000_000)
+    lcd_display_on()
+    show_status("  DEEP SLEEP    ", " SW1 TO WAKE UP ")
+    blink(2, on_ms=200, off_ms=200)
+    lcd_display_off()
+    trigger.irq(trigger=machine.Pin.IRQ_FALLING, handler=lambda p: None)
+    machine.deepsleep()
+
+##
+#   STARTUP
+##
+
 initLCD()
 show_status("TV-B-GONE READY ", "PRESS SW1 START ")
 blink(3)
@@ -545,10 +589,17 @@ print("TV B Gone ready. sw1push=start  sw2push=cancel")
 #   MAIN LOOP
 ##
 
+_last_activity    = utime.ticks_ms()
+_display_sleeping = False
+
 while True:
-    if trigger.value() == 0:       # active LOW: button pressed
-        utime.sleep_ms(20)         # debounce
+    if trigger.value() == 0:          # active LOW: button pressed
+        utime.sleep_ms(20)            # debounce
         if trigger.value() == 0:
+            if _display_sleeping:
+                wake_from_light_sleep_mode()
+                _display_sleeping = False
+            _last_activity = utime.ticks_ms()
             show_status("STARTING...     ", "HOLD SW2 CANCEL ")
             blink(1, on_ms=200)
             done = send_all_codes()
@@ -565,4 +616,14 @@ while True:
                 blink(3, on_ms=80, off_ms=80)
             utime.sleep_ms(1500)
             show_status("TV-B-GONE READY ", "PRESS SW1 START ")
-    utime.sleep_ms(20)
+            _last_activity = utime.ticks_ms()
+
+    idle_ms = utime.ticks_diff(utime.ticks_ms(), _last_activity)
+
+    if idle_ms >= _DEEP_SLEEP_TIMEOUT_MS:
+        enter_deep_sleep()            # does not return; chip resets on wake
+    elif idle_ms >= _IDLE_TIMEOUT_MS and not _display_sleeping:
+        _display_sleeping = True
+        enter_light_sleep_mode()
+
+    machine.lightsleep(500 if _display_sleeping else _LIGHT_SLEEP_POLL_MS)
