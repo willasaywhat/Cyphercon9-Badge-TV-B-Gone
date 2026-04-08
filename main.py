@@ -581,8 +581,13 @@ def enter_deep_sleep():
     show_status("  DEEP SLEEP    ", " SW1 TO WAKE UP ")
     blink(2, on_ms=200, off_ms=200)
     lcd_display_off()
-    trigger.irq(trigger=machine.Pin.IRQ_FALLING, handler=lambda p: None)
-    machine.deepsleep()
+    # machine.deepsleep() on RP2040 MicroPython doesn't reliably configure
+    # the DORMANT wake source from Pin.irq() alone. Instead, lightsleep()
+    # is well-tested for GPIO IRQ wake; machine.reset() then gives us the
+    # same "clean reboot on wake" behaviour.
+    trigger.irq(trigger=machine.Pin.IRQ_FALLING)
+    machine.lightsleep()   # wakes when SW1 pulled LOW
+    machine.reset()        # reboot → main.py runs from top as the wake UX
 
 ##
 #   STARTUP
