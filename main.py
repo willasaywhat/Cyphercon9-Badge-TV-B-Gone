@@ -574,20 +574,21 @@ def wake_from_light_sleep_mode():
     show_status("TV-B-GONE READY ", "PRESS SW1 START ")
 
 def enter_deep_sleep():
-    """Enter RP2040 deep sleep; GPIO14 (trigger) wakes the system via reset."""
+    """Deepest power tier: LCD off, CPU at 48 MHz, poll SW1 every 500 ms then reset."""
     machine.freq(125_000_000)
     _resync_spi()
     lcd_display_on()
     show_status("  DEEP SLEEP    ", " SW1 TO WAKE UP ")
     blink(2, on_ms=200, off_ms=200)
     lcd_display_off()
-    # machine.deepsleep() on RP2040 MicroPython doesn't reliably configure
-    # the DORMANT wake source from Pin.irq() alone. Instead, lightsleep()
-    # is well-tested for GPIO IRQ wake; machine.reset() then gives us the
-    # same "clean reboot on wake" behaviour.
-    trigger.irq(trigger=machine.Pin.IRQ_FALLING)
-    machine.lightsleep()   # wakes when SW1 pulled LOW
-    machine.reset()        # reboot → main.py runs from top as the wake UX
+    machine.freq(48_000_000)
+    # No-arg lightsleep() needs a properly registered GPIO IRQ wake source,
+    # which is unreliable on RP2040 MicroPython. Timed lightsleep(500) is
+    # guaranteed to work (same mechanism as Tier 2). Poll SW1 and reset on
+    # press to give the intended "clean reboot on wake" behaviour.
+    while trigger.value() == 1:  # active LOW: 1 = not pressed
+        machine.lightsleep(500)
+    machine.reset()
 
 ##
 #   STARTUP
