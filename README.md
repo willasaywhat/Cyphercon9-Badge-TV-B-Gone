@@ -19,7 +19,7 @@ The badge has a three-tier sleep system to extend battery life:
 |------|---------|-----------|------|
 | **Light poll** | Always | CPU halts between button checks (`machine.lightsleep`) instead of busy-waiting | Automatic |
 | **Display sleep** | 30 s idle | LCD turns off, CPU drops to 48 MHz | Press SW1 |
-| **Deep sleep** | 5 min idle | RP2040 enters DORMANT state (minimal draw) | Press SW1 — badge reboots |
+| **Deep sleep** | 5 min idle | LCD off, CPU at 48 MHz, polls SW1 every 500 ms | Press SW1 — badge reboots |
 
 Timeouts are configurable constants near the top of `main.py`:
 
